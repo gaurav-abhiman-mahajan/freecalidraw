@@ -12,6 +12,7 @@ import { AppState, BinaryFiles, ExcalidrawImperativeAPI, Collaborator } from "@e
 import { TopBar } from "./components/TopBar";
 import { CollabModal } from "./components/CollabModal";
 import { ExportModal } from "./components/ExportModal";
+import { MermaidModal } from "./components/MermaidModal";
 
 import {
   listBoards,
@@ -58,6 +59,7 @@ export const App: React.FC = () => {
   // Modals state
   const [isCollabModalOpen, setIsCollabModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isMermaidModalOpen, setIsMermaidModalOpen] = useState(false);
 
   // Cached state for export modal (updated only when export modal opens)
   const [exportData, setExportData] = useState<{
@@ -340,6 +342,7 @@ export const App: React.FC = () => {
         collabSession={collabSession}
         onOpenCollab={() => setIsCollabModalOpen(true)}
         onOpenExport={handleOpenExport}
+        onOpenMermaid={() => setIsMermaidModalOpen(true)}
         theme={theme}
         onToggleTheme={handleToggleTheme}
       />
@@ -375,6 +378,11 @@ export const App: React.FC = () => {
             <MainMenu.DefaultItems.ClearCanvas />
             <MainMenu.Separator />
             <MainMenu.Item
+              onSelect={() => setIsMermaidModalOpen(true)}
+            >
+              Insert Mermaid / SVG
+            </MainMenu.Item>
+            <MainMenu.Item
               onSelect={() => setIsCollabModalOpen(true)}
             >
               Live collaboration
@@ -407,6 +415,13 @@ export const App: React.FC = () => {
         appState={exportData.appState}
         files={exportData.files}
         currentBoardName={currentBoardName}
+      />
+
+      {/* Mermaid / SVG Import Dialog */}
+      <MermaidModal
+        isOpen={isMermaidModalOpen}
+        onClose={() => setIsMermaidModalOpen(false)}
+        excalidrawAPI={excalidrawAPI}
       />
     </div>
   );

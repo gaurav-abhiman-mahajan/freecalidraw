@@ -7,10 +7,10 @@ import {
   Check,
   Edit2,
   Trash2,
-  Share2,
   Moon,
   Sun,
   ShieldCheck,
+  FileCode,
 } from "lucide-react";
 import { BoardMetadata, CollabSession } from "../types";
 
@@ -26,6 +26,7 @@ interface TopBarProps {
   collabSession: CollabSession;
   onOpenCollab: () => void;
   onOpenExport: () => void;
+  onOpenMermaid: () => void;
   theme: "light" | "dark";
   onToggleTheme: () => void;
 }
@@ -42,6 +43,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   collabSession,
   onOpenCollab,
   onOpenExport,
+  onOpenMermaid,
   theme,
   onToggleTheme,
 }) => {
@@ -174,6 +176,12 @@ export const TopBar: React.FC<TopBarProps> = ({
       </div>
 
       <div className="top-bar-right">
+        {/* Mermaid / SVG Importer Button */}
+        <button className="topbar-action-btn" onClick={onOpenMermaid} title="Import Mermaid diagram or SVG">
+          <FileCode size={16} />
+          <span>Mermaid / SVG</span>
+        </button>
+
         {/* Collaboration Badge / Button */}
         <button
           className={`collab-btn ${collabSession.active ? "collab-active" : ""}`}
