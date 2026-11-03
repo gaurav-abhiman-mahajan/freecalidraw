@@ -88,13 +88,41 @@
   letter-spacing: -0.3px;
 }
 
+.brand-info {
+  display: flex;
+  flex-direction: column;
+}
+
 .brand-text {
   color: var(--text-main);
   font-family: inherit;
+  line-height: 1.1;
+}
+
+.brand-tag {
+  font-size: 9px;
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 1px 5px;
+  border-radius: 8px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  display: inline-block;
+  margin-top: 2px;
 }
 
 .board-selector-wrapper {
   position: relative;
+}
+
+.board-pill-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 2px 4px;
 }
 
 .board-dropdown-btn {
@@ -102,15 +130,103 @@
   align-items: center;
   gap: 6px;
   background: transparent;
-  border: 1px solid var(--border-color);
+  border: none;
   border-radius: 6px;
-  padding: 5px 10px;
+  padding: 4px 8px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--text-main);
   cursor: pointer;
   transition: all 0.15s ease;
-  max-width: 220px;
+  max-width: 200px;
+}
+
+.board-dropdown-btn:hover {
+  background: var(--primary-light);
+}
+
+.chevron-icon {
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.chevron-icon.open {
+  transform: rotate(180deg);
+}
+
+.current-board-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-new-board-topbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  border-radius: 5px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-new-board-topbar:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+
+.rename-form {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.btn-confirm-rename,
+.btn-cancel-rename {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  padding: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-confirm-rename {
+  background: var(--primary);
+  color: #fff;
+}
+
+.btn-cancel-rename {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.btn-cancel-rename:hover {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.dropdown-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.active-board-badge {
+  font-size: 10px;
+  background: var(--primary);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: 700;
+  margin-left: auto;
 }
 
 .board-dropdown-btn:hover {

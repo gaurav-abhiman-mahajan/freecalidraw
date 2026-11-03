@@ -89,6 +89,7 @@ export const App: React.FC = () => {
   const collabManagerRef = useRef<CollabManager | null>(null);
   const saveTimeoutRef = useRef<any>(null);
   const isRemoteSyncRef = useRef<boolean>(false);
+  const isSwitchingBoardRef = useRef<boolean>(false);
   const activeBoardIdRef = useRef<string>(activeBoardIdState);
   const currentBoardNameRef = useRef<string>(currentBoardName);
 
@@ -181,31 +182,78 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // Switch boards
+  // Switch boards safely with scene reset and state synchronization
   const handleSelectBoard = (id: string) => {
+    if (!excalidrawAPI) return;
     const board = loadBoard(id);
-    if (!board || !excalidrawAPI) return;
+    if (!board) return;
 
+    // Flush any pending save for current board
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    if (activeBoardIdRef.current) {
+      saveBoard(
+        activeBoardIdRef.current,
+        currentBoardNameRef.current,
+        excalidrawAPI.getSceneElements(),
+        excalidrawAPI.getAppState(),
+        excalidrawAPI.getFiles()
+      );
+    }
+
+    // Set switching flag to block premature autosaves
+    isSwitchingBoardRef.current = true;
+
+    // Update synchronous refs and React states
     setActiveBoardId(id);
     setActiveBoardIdState(id);
+    activeBoardIdRef.current = id;
     setCurrentBoardName(board.name);
+    currentBoardNameRef.current = board.name;
 
+    // Reset scene to clear any previous elements cleanly
+    excalidrawAPI.resetScene();
+
+    // Load target board's elements and files
     excalidrawAPI.updateScene({
-      elements: board.elements,
+      elements: board.elements || [],
       appState: {
         ...excalidrawAPI.getAppState(),
         ...board.appState,
         theme,
       },
     });
+
     if (board.files && Object.keys(board.files).length > 0) {
       excalidrawAPI.addFiles(Object.values(board.files));
     }
     excalidrawAPI.history.clear();
+
+    setTimeout(() => {
+      isSwitchingBoardRef.current = false;
+      setBoards(listBoards());
+    }, 120);
   };
 
-  const handleCreateBoard = () => {
-    const newBoard = createBoard("Untitled Board");
+  const handleCreateBoard = (customName?: string) => {
+    // Flush current board before creating new one
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    if (activeBoardIdRef.current && excalidrawAPI) {
+      saveBoard(
+        activeBoardIdRef.current,
+        currentBoardNameRef.current,
+        excalidrawAPI.getSceneElements(),
+        excalidrawAPI.getAppState(),
+        excalidrawAPI.getFiles()
+      );
+    }
+
+    const newBoard = createBoard(customName);
     setBoards(listBoards());
     handleSelectBoard(newBoard.id);
   };
@@ -217,8 +265,11 @@ export const App: React.FC = () => {
   };
 
   const handleRenameBoard = (newName: string) => {
-    setCurrentBoardName(newName);
-    renameBoard(activeBoardIdState, newName);
+    if (!newName.trim()) return;
+    const cleanName = newName.trim();
+    currentBoardNameRef.current = cleanName;
+    setCurrentBoardName(cleanName);
+    renameBoard(activeBoardIdState, cleanName);
     setBoards(listBoards());
   };
 
@@ -229,6 +280,9 @@ export const App: React.FC = () => {
       appState: AppState,
       files: BinaryFiles
     ) => {
+      // Ignore updates during active board transitions
+      if (isSwitchingBoardRef.current) return;
+
       // Collab broadcast if active and not an incoming remote update
       if (
         collabSession.active &&
@@ -244,6 +298,7 @@ export const App: React.FC = () => {
         clearTimeout(saveTimeoutRef.current);
       }
       saveTimeoutRef.current = setTimeout(() => {
+        if (isSwitchingBoardRef.current) return;
         const activeId = activeBoardIdRef.current;
         const boardName = currentBoardNameRef.current;
         if (activeId) {

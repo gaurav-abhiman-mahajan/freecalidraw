@@ -15,16 +15,18 @@ if %errorlevel% neq 0 (
 
 set HOSTS=C:\Windows\System32\drivers\etc\hosts
 
-findstr /I "excalidraw.local" "%HOSTS%" >nul
+findstr /I "freecalidraw.local" "%HOSTS%" >nul
 if %errorlevel% neq 0 (
     echo.>> "%HOSTS%"
+    echo 127.0.0.1 freecalidraw.local>> "%HOSTS%"
     echo 127.0.0.1 excalidraw.local>> "%HOSTS%"
     echo 127.0.0.1 whiteboard.local>> "%HOSTS%"
     echo [OK] Successfully mapped:
+    echo        127.0.0.1  freecalidraw.local
     echo        127.0.0.1  excalidraw.local
     echo        127.0.0.1  whiteboard.local
 ) else (
-    echo [OK] excalidraw.local is already present in %HOSTS%.
+    echo [OK] freecalidraw.local is already present in %HOSTS%.
 )
 
 ipconfig /flushdns >nul

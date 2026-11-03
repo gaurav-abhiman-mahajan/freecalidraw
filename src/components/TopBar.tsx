@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Users,
   FolderOpen,
@@ -11,6 +11,9 @@ import {
   Sun,
   ShieldCheck,
   FileCode,
+  X,
+  Layers,
+  ChevronDown,
 } from "lucide-react";
 import { BoardMetadata, CollabSession } from "../types";
 
@@ -20,7 +23,7 @@ interface TopBarProps {
   boards: BoardMetadata[];
   activeBoardId: string;
   onSelectBoard: (id: string) => void;
-  onCreateBoard: () => void;
+  onCreateBoard: (name?: string) => void;
   onDeleteBoard: (id: string) => void;
   saveStatus: "saved" | "saving";
   collabSession: CollabSession;
@@ -50,41 +53,149 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(currentBoardName);
   const [showBoardsDropdown, setShowBoardsDropdown] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
-  const handleNameSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editedName.trim()) {
-      onRenameBoard(editedName.trim());
+  // Synchronize editedName whenever currentBoardName changes from outside
+  useEffect(() => {
+    setEditedName(currentBoardName);
+  }, [currentBoardName]);
+
+  // Focus and select input on editing mode
+  useEffect(() => {
+    if (isEditingName && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditingName]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowBoardsDropdown(false);
+      }
+    };
+    if (showBoardsDropdown) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [showBoardsDropdown]);
+
+  const handleNameSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = editedName.trim();
+    if (trimmed && trimmed !== currentBoardName) {
+      onRenameBoard(trimmed);
+    } else {
+      setEditedName(currentBoardName);
     }
     setIsEditingName(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleNameSubmit();
+    } else if (e.key === "Escape") {
+      setEditedName(currentBoardName);
+      setIsEditingName(false);
+    }
   };
 
   return (
     <header className="excalidraw-top-bar">
       <div className="top-bar-left">
-        {/* Brand / Logo */}
-        <div className="brand-logo" title="Excalidraw Local">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+        {/* Freecalidraw Brand / Logo */}
+        <div className="brand-logo" title="Freecalidraw - Open Source Whiteboard">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
             <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
           </svg>
-          <span className="brand-text">Excalidraw</span>
+          <div className="brand-info">
+            <span className="brand-text">Freecalidraw</span>
+            <span className="brand-tag">v1.0 • Open Source</span>
+          </div>
         </div>
 
-        {/* Board Switcher Dropdown */}
-        <div className="board-selector-wrapper">
-          <button
-            className="board-dropdown-btn"
-            onClick={() => setShowBoardsDropdown(!showBoardsDropdown)}
-            title="Switch whiteboard"
-          >
-            <FolderOpen size={16} />
-            <span className="current-board-name">{currentBoardName}</span>
-          </button>
+        {/* Board Switcher Dropdown & Quick Actions */}
+        <div className="board-selector-wrapper" ref={dropdownRef}>
+          {/* Main Board Display & Click-to-Rename */}
+          <div className="board-pill-group">
+            <button
+              className="board-dropdown-btn"
+              onClick={() => setShowBoardsDropdown(!showBoardsDropdown)}
+              title="View all saved boards"
+            >
+              <FolderOpen size={15} />
+              <span className="current-board-name">{currentBoardName}</span>
+              <ChevronDown size={13} className={`chevron-icon ${showBoardsDropdown ? "open" : ""}`} />
+            </button>
 
+            {isEditingName ? (
+              <form onSubmit={handleNameSubmit} className="rename-form">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={editedName}
+                  onChange={(e) => setEditedName(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  onBlur={() => handleNameSubmit()}
+                  className="rename-input"
+                  placeholder="Board name..."
+                />
+                <button
+                  type="submit"
+                  className="btn-confirm-rename"
+                  title="Save name (Enter)"
+                  onMouseDown={(e) => e.preventDefault()}
+                >
+                  <Check size={13} />
+                </button>
+                <button
+                  type="button"
+                  className="btn-cancel-rename"
+                  title="Cancel (Esc)"
+                  onClick={() => {
+                    setEditedName(currentBoardName);
+                    setIsEditingName(false);
+                  }}
+                >
+                  <X size={13} />
+                </button>
+              </form>
+            ) : (
+              <button
+                className="btn-edit-title"
+                onClick={() => {
+                  setEditedName(currentBoardName);
+                  setIsEditingName(true);
+                }}
+                title="Click to rename current board"
+              >
+                <Edit2 size={13} />
+              </button>
+            )}
+
+            {/* Direct "+ New Board" Button on TopBar */}
+            <button
+              className="btn-new-board-topbar"
+              onClick={() => onCreateBoard()}
+              title="Create a brand new whiteboard"
+            >
+              <Plus size={14} />
+              <span>New Board</span>
+            </button>
+          </div>
+
+          {/* Boards Dropdown List */}
           {showBoardsDropdown && (
             <div className="boards-dropdown-menu">
               <div className="boards-dropdown-header">
-                <span>Saved Whiteboards</span>
+                <div className="dropdown-title-row">
+                  <Layers size={14} />
+                  <span>My Whiteboards ({boards.length})</span>
+                </div>
                 <button
                   className="btn-new-board-mini"
                   onClick={() => {
@@ -93,9 +204,10 @@ export const TopBar: React.FC<TopBarProps> = ({
                   }}
                   title="Create new whiteboard"
                 >
-                  <Plus size={14} /> New
+                  <Plus size={13} /> Add Board
                 </button>
               </div>
+
               <div className="boards-dropdown-list">
                 {boards.map((b) => (
                   <div
@@ -107,18 +219,23 @@ export const TopBar: React.FC<TopBarProps> = ({
                       onClick={() => {
                         onSelectBoard(b.id);
                         setShowBoardsDropdown(false);
-                        setEditedName(b.name);
                       }}
                     >
-                      <span className="board-item-name">{b.name}</span>
-                      <span className="board-item-elements">{b.elementCount} items</span>
+                      <div className="board-item-info">
+                        <span className="board-item-name">{b.name}</span>
+                        <span className="board-item-elements">{b.elementCount} shapes</span>
+                      </div>
+                      {b.id === activeBoardId && (
+                        <span className="active-board-badge">Active</span>
+                      )}
                     </button>
+
                     {boards.length > 1 && (
                       <button
                         className="board-item-delete"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm(`Delete whiteboard "${b.name}"?`)) {
+                          if (confirm(`Delete board "${b.name}"? This cannot be undone.`)) {
                             onDeleteBoard(b.id);
                           }
                         }}
@@ -134,87 +251,76 @@ export const TopBar: React.FC<TopBarProps> = ({
           )}
         </div>
 
-        {/* Inline Board Renamer */}
-        {isEditingName ? (
-          <form onSubmit={handleNameSubmit} className="rename-form">
-            <input
-              type="text"
-              value={editedName}
-              onChange={(e) => setEditedName(e.target.value)}
-              onBlur={handleNameSubmit}
-              autoFocus
-              className="rename-input"
-            />
-          </form>
-        ) : (
-          <button
-            className="btn-edit-title"
-            onClick={() => {
-              setEditedName(currentBoardName);
-              setIsEditingName(true);
-            }}
-            title="Click to rename board"
-          >
-            <Edit2 size={12} />
-          </button>
-        )}
-
-        {/* Save Status Indicator */}
-        <div className="save-status" title={saveStatus === "saved" ? "All changes saved locally" : "Saving..."}>
-          {saveStatus === "saved" ? (
+        {/* Real-time Save Status */}
+        <div className="save-status">
+          {saveStatus === "saving" ? (
             <>
-              <Check size={13} className="text-success" />
-              <span>Saved</span>
+              <span className="spinner-dots"></span>
+              <span>Saving...</span>
             </>
           ) : (
             <>
-              <span className="spinner-dots" />
-              <span>Saving...</span>
+              <Check size={14} className="text-success" />
+              <span>Saved locally</span>
             </>
           )}
         </div>
       </div>
 
+      {/* Top Bar Right: Collab, Mermaid/SVG, Export, Theme */}
       <div className="top-bar-right">
-        {/* Mermaid / SVG Importer Button */}
-        <button className="topbar-action-btn" onClick={onOpenMermaid} title="Import Mermaid diagram or SVG">
-          <FileCode size={16} />
-          <span>Mermaid / SVG</span>
+        {/* Import SVG / Mermaid */}
+        <button
+          className="topbar-action-btn"
+          onClick={onOpenMermaid}
+          title="Import architecture diagrams, Mermaid code, or SVG vector graphics"
+        >
+          <FileCode size={15} />
+          <span>Import SVG / Mermaid</span>
         </button>
 
-        {/* Collaboration Badge / Button */}
+        {/* Live Collaboration Button */}
         <button
-          className={`collab-btn ${collabSession.active ? "collab-active" : ""}`}
+          className={`collab-btn ${collabSession.active ? "collab-btn-active" : ""}`}
           onClick={onOpenCollab}
-          title="Real-time Collaboration"
+          title={
+            collabSession.active
+              ? `Collaborating (${collabSession.peers.length + 1} users connected)`
+              : "Start end-to-end encrypted collaboration"
+          }
         >
           {collabSession.active ? (
             <>
-              <span className="pulse-indicator" />
-              <ShieldCheck size={16} />
+              <span className="live-pulse"></span>
+              <Users size={15} />
               <span>Live ({collabSession.peers.length + 1})</span>
+              <ShieldCheck size={13} className="e2e-badge" />
             </>
           ) : (
             <>
-              <Users size={16} />
+              <Users size={15} />
               <span>Collaborate</span>
             </>
           )}
         </button>
 
-        {/* Export Button */}
-        <button className="topbar-action-btn" onClick={onOpenExport} title="Export image / file">
-          <Download size={16} />
+        {/* Export Modal Button */}
+        <button
+          className="topbar-action-btn"
+          onClick={onOpenExport}
+          title="Export diagram as PNG, SVG, or JSON"
+        >
+          <Download size={15} />
           <span>Export</span>
         </button>
 
         {/* Theme Toggle Button */}
         <button
-          className="topbar-action-btn icon-only"
+          className="topbar-icon-btn"
           onClick={onToggleTheme}
-          title={`Switch to ${theme === "light" ? "dark" : "light"} mode`}
+          title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         >
-          {theme === "light" ? <Moon size={16} /> : <Sun size={16} />}
+          {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
         </button>
       </div>
     </header>

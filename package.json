@@ -1,5 +1,7 @@
 {
-  "name": "excalidraw-clone",
+  "name": "freecalidraw",
+  "description": "Open source, self-hosted, collaborative whiteboard with multi-board storage, E2EE collaboration, and 1:1 SVG/Mermaid diagram conversion",
+  "license": "MIT",
   "private": true,
   "version": "1.0.0",
   "type": "module",
