@@ -12,35 +12,27 @@ A local-first, containerized replica of [Excalidraw](https://excalidraw.com) bui
 * **Self-hosted & offline**: All fonts (Virgil, Cascadia, Excalifont, Assistant, Comic Shanns, Lilita, Nunito, Xiaolai) and locale assets are bundled locally in `public/`. No external CDN dependency.
 * **Real-time collaboration**: Unified WebSocket relay server with client-side 256-bit AES-GCM end-to-end encryption (E2EE), zero-login shareable room links, and live peer cursor overlays.
 * **Always-on container**: Dockerized production deployment with `restart: always` policy, integrated static asset server, and automated health checks.
+* **Local domain alias**: Accessible directly via `http://excalidraw.local` without specifying port numbers.
 
-## Project Structure
+---
 
+## Local Domain Alias Setup (`http://excalidraw.local`)
+
+To open Excalidraw with `http://excalidraw.local` instead of an IP or port:
+
+### Option 1: Double-click batch script
+Double-click [scripts/setup-domain.bat](file:///g:/Gamoventure/Organisation/excalidraw-clone/scripts/setup-domain.bat) in File Explorer. When prompted by Windows User Account Control (UAC), click **Yes**.
+
+### Option 2: Run via Elevated PowerShell
+Open PowerShell as Administrator and run:
+```powershell
+Add-Content -Path "$env:windir\System32\drivers\etc\hosts" -Value "`n127.0.0.1 excalidraw.local`n127.0.0.1 whiteboard.local"
+ipconfig /flushdns
 ```
-excalidraw-clone/
-├── public/                 # Self-hosted fonts, chunks, and locales
-├── server/
-│   ├── collab-server.js    # Standalone WebSocket relay for dev mode
-│   └── prod-server.js      # Unified production static file & WebSocket server
-├── src/
-│   ├── components/
-│   │   ├── TopBar.tsx      # Multi-board selector, save status, collab & export triggers
-│   │   ├── CollabModal.tsx # E2EE collaboration room controls & link sharing
-│   │   └── ExportModal.tsx # PNG / SVG / JSON export dialog
-│   ├── services/
-│   │   ├── collab.ts       # WebSocket client with auto-detecting host/port
-│   │   ├── crypto.ts       # Web Crypto API AES-GCM 256-bit encryption / decryption
-│   │   ├── export.ts       # Standalone PNG, SVG, and JSON exporters
-│   │   └── storage.ts      # Multi-board local persistence and state restoration
-│   ├── styles/
-│   │   └── app.css         # UI styles and theme definitions
-│   ├── types.ts            # Type definitions
-│   ├── App.tsx             # Main canvas orchestration
-│   └── main.tsx            # React application entry point
-├── Dockerfile              # Multi-stage production container definition
-├── docker-compose.yml      # Orchestration with restart: always policy
-├── package.json
-└── vite.config.ts
-```
+
+Once added, open [http://excalidraw.local](http://excalidraw.local) in your browser.
+
+---
 
 ## Running with Docker (Always Running)
 
@@ -48,8 +40,10 @@ excalidraw-clone/
 ```bash
 docker compose up -d
 ```
-* Container name: `excalidraw-app`
-* Port: [http://localhost:8090](http://localhost:8090)
+* URLs:
+  * Domain: [http://excalidraw.local](http://excalidraw.local)
+  * Default HTTP port: [http://localhost](http://localhost)
+  * Explicit port: [http://localhost:8090](http://localhost:8090)
 * Restart policy: `always` (automatically relaunches on system boot or unexpected failure)
 
 ### Check container logs and status
