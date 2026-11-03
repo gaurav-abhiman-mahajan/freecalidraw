@@ -45,7 +45,7 @@ Freecalidraw is an open source, privacy-first, self-hosted virtual whiteboard wi
 
 Clone the repository and launch the container in detached mode:
 ```bash
-git clone https://github.com/your-username/freecalidraw.git
+git clone https://github.com/gaurav-abhiman-mahajan/freecalidraw.git
 cd freecalidraw
 docker compose up --build -d
 ```

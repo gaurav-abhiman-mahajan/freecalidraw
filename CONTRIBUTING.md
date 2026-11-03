@@ -20,7 +20,7 @@ Freecalidraw is an open, welcoming community. Treat all participants with respec
 ### Setup
 1. Fork and clone the repository:
    ```bash
-   git clone https://github.com/your-username/freecalidraw.git
+   git clone https://github.com/gaurav-abhiman-mahajan/freecalidraw.git
    cd freecalidraw
    ```
 2. Install dependencies:
