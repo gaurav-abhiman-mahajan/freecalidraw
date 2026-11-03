@@ -7,12 +7,11 @@ import {
   WelcomeScreen,
 } from "@excalidraw/excalidraw";
 import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { AppState, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import { AppState, BinaryFiles, ExcalidrawImperativeAPI, Collaborator } from "@excalidraw/excalidraw/types";
 
 import { TopBar } from "./components/TopBar";
 import { CollabModal } from "./components/CollabModal";
 import { ExportModal } from "./components/ExportModal";
-import { PeerCursors } from "./components/PeerCursors";
 
 import {
   listBoards,
@@ -35,9 +34,24 @@ import { BoardMetadata, CollabSession, PeerUser } from "./types";
 
 export const App: React.FC = () => {
   const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI | null>(null);
+
+  // Stable initial data loaded once before mount
+  const [initialData] = useState(() => {
+    const activeId = getActiveBoardId();
+    const board = loadBoard(activeId);
+    return {
+      elements: board ? board.elements : [],
+      appState: board ? { ...board.appState, theme: "light" as const } : { theme: "light" as const },
+      files: board ? board.files : {},
+    };
+  });
+
   const [boards, setBoards] = useState<BoardMetadata[]>([]);
-  const [activeBoardIdState, setActiveBoardIdState] = useState<string>("");
-  const [currentBoardName, setCurrentBoardName] = useState<string>("Whiteboard");
+  const [activeBoardIdState, setActiveBoardIdState] = useState<string>(() => getActiveBoardId());
+  const [currentBoardName, setCurrentBoardName] = useState<string>(() => {
+    const board = loadBoard(getActiveBoardId());
+    return board ? board.name : "Whiteboard";
+  });
   const [saveStatus, setSaveStatus] = useState<"saved" | "saving">("saved");
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
@@ -45,10 +59,16 @@ export const App: React.FC = () => {
   const [isCollabModalOpen, setIsCollabModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
-  // Cached canvas state for exports
-  const [currentElements, setCurrentElements] = useState<readonly ExcalidrawElement[]>([]);
-  const [currentAppState, setCurrentAppState] = useState<Partial<AppState>>({});
-  const [currentFiles, setCurrentFiles] = useState<BinaryFiles>({});
+  // Cached state for export modal (updated only when export modal opens)
+  const [exportData, setExportData] = useState<{
+    elements: readonly ExcalidrawElement[];
+    appState: Partial<AppState>;
+    files: BinaryFiles;
+  }>({
+    elements: [],
+    appState: {},
+    files: {},
+  });
 
   // Collaboration state
   const [collabSession, setCollabSession] = useState<CollabSession>({
@@ -64,6 +84,11 @@ export const App: React.FC = () => {
   const collabManagerRef = useRef<CollabManager | null>(null);
   const saveTimeoutRef = useRef<any>(null);
   const isRemoteSyncRef = useRef<boolean>(false);
+  const activeBoardIdRef = useRef<string>(activeBoardIdState);
+  const currentBoardNameRef = useRef<string>(currentBoardName);
+
+  activeBoardIdRef.current = activeBoardIdState;
+  currentBoardNameRef.current = currentBoardName;
 
   // Initialize collab manager
   useEffect(() => {
@@ -77,13 +102,35 @@ export const App: React.FC = () => {
           elements: merged,
           captureUpdate: CaptureUpdateAction.NEVER,
         });
-        setCurrentElements(merged);
         setTimeout(() => {
           isRemoteSyncRef.current = false;
         }, 50);
       },
       onPeersUpdated: (peers: PeerUser[]) => {
         setCollabSession((prev) => ({ ...prev, peers }));
+
+        // Map peers to Excalidraw's native collaborators
+        if (excalidrawAPI) {
+          const collaboratorsMap = new Map();
+          for (const peer of peers) {
+            if (peer.cursor) {
+              collaboratorsMap.set(peer.userId, {
+                pointer: {
+                  x: peer.cursor.x,
+                  y: peer.cursor.y,
+                  tool: "pointer",
+                  renderCursor: true,
+                },
+                username: peer.username,
+                color: {
+                  background: peer.color,
+                  stroke: peer.color,
+                },
+              });
+            }
+          }
+          excalidrawAPI.updateScene({ collaborators: collaboratorsMap as any });
+        }
       },
       onConnectionStatus: (status) => {
         setCollabSession((prev) => ({
@@ -120,20 +167,12 @@ export const App: React.FC = () => {
 
   // Load boards on startup
   useEffect(() => {
-    const activeId = getActiveBoardId();
-    setActiveBoardIdState(activeId);
     const allBoards = listBoards();
     setBoards(allBoards);
-
+    const activeId = getActiveBoardId();
     const board = loadBoard(activeId);
-    if (board) {
-      setCurrentBoardName(board.name);
-      setCurrentElements(board.elements);
-      setCurrentAppState(board.appState);
-      setCurrentFiles(board.files);
-      if (board.appState.theme === "dark" || board.appState.theme === "light") {
-        setTheme(board.appState.theme);
-      }
+    if (board && (board.appState.theme === "dark" || board.appState.theme === "light")) {
+      setTheme(board.appState.theme);
     }
   }, []);
 
@@ -145,9 +184,6 @@ export const App: React.FC = () => {
     setActiveBoardId(id);
     setActiveBoardIdState(id);
     setCurrentBoardName(board.name);
-    setCurrentElements(board.elements);
-    setCurrentAppState(board.appState);
-    setCurrentFiles(board.files);
 
     excalidrawAPI.updateScene({
       elements: board.elements,
@@ -181,17 +217,13 @@ export const App: React.FC = () => {
     setBoards(listBoards());
   };
 
-  // Canvas change handler with debounced save & collab broadcast
+  // Canvas change handler: performs autosaving without forcing re-renders on every frame
   const handleChange = useCallback(
     (
       elements: readonly ExcalidrawElement[],
       appState: AppState,
       files: BinaryFiles
     ) => {
-      setCurrentElements(elements);
-      setCurrentAppState(appState);
-      setCurrentFiles(files);
-
       // Collab broadcast if active and not an incoming remote update
       if (
         collabSession.active &&
@@ -207,14 +239,16 @@ export const App: React.FC = () => {
         clearTimeout(saveTimeoutRef.current);
       }
       saveTimeoutRef.current = setTimeout(() => {
-        if (activeBoardIdState) {
-          saveBoard(activeBoardIdState, currentBoardName, elements, appState, files);
+        const activeId = activeBoardIdRef.current;
+        const boardName = currentBoardNameRef.current;
+        if (activeId) {
+          saveBoard(activeId, boardName, elements, appState, files);
           setBoards(listBoards());
           setSaveStatus("saved");
         }
-      }, 350);
+      }, 400);
     },
-    [activeBoardIdState, currentBoardName, collabSession.active]
+    [collabSession.active]
   );
 
   // Pointer movement tracking for peer cursors
@@ -280,8 +314,17 @@ export const App: React.FC = () => {
     }
   };
 
-  // Prepare initial data
-  const initialBoard = loadBoard(activeBoardIdState);
+  // Open Export Modal
+  const handleOpenExport = () => {
+    if (excalidrawAPI) {
+      setExportData({
+        elements: excalidrawAPI.getSceneElements(),
+        appState: excalidrawAPI.getAppState(),
+        files: excalidrawAPI.getFiles(),
+      });
+    }
+    setIsExportModalOpen(true);
+  };
 
   return (
     <div className={`excalidraw-app-container ${theme === "dark" ? "theme-dark" : "theme-light"}`}>
@@ -296,7 +339,7 @@ export const App: React.FC = () => {
         saveStatus={saveStatus}
         collabSession={collabSession}
         onOpenCollab={() => setIsCollabModalOpen(true)}
-        onOpenExport={() => setIsExportModalOpen(true)}
+        onOpenExport={handleOpenExport}
         theme={theme}
         onToggleTheme={handleToggleTheme}
       />
@@ -304,11 +347,7 @@ export const App: React.FC = () => {
       <div className="excalidraw-canvas-wrapper">
         <Excalidraw
           excalidrawAPI={(api) => setExcalidrawAPI(api)}
-          initialData={{
-            elements: initialBoard ? initialBoard.elements : [],
-            appState: initialBoard ? { ...initialBoard.appState, theme } : { theme },
-            files: initialBoard ? initialBoard.files : {},
-          }}
+          initialData={initialData}
           onChange={handleChange}
           onPointerUpdate={handlePointerUpdate}
           isCollaborating={collabSession.active}
@@ -341,7 +380,7 @@ export const App: React.FC = () => {
               Live collaboration
             </MainMenu.Item>
             <MainMenu.Item
-              onSelect={() => setIsExportModalOpen(true)}
+              onSelect={handleOpenExport}
             >
               Export image & JSON
             </MainMenu.Item>
@@ -349,9 +388,6 @@ export const App: React.FC = () => {
           </MainMenu>
           <WelcomeScreen />
         </Excalidraw>
-
-        {/* Live Peer Cursors Overlay */}
-        <PeerCursors peers={collabSession.peers} appState={currentAppState} />
       </div>
 
       {/* Collaboration Dialog */}
@@ -367,9 +403,9 @@ export const App: React.FC = () => {
       <ExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
-        elements={currentElements}
-        appState={currentAppState}
-        files={currentFiles}
+        elements={exportData.elements}
+        appState={exportData.appState}
+        files={exportData.files}
         currentBoardName={currentBoardName}
       />
     </div>

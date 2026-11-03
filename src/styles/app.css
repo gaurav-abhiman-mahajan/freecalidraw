@@ -51,6 +51,12 @@
   position: relative;
 }
 
+.excalidraw-canvas-wrapper .excalidraw {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+}
+
 /* Top Bar */
 .excalidraw-top-bar {
   height: 48px;
