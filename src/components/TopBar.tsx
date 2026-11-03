@@ -108,14 +108,11 @@ export const TopBar: React.FC<TopBarProps> = ({
     <header className="excalidraw-top-bar">
       <div className="top-bar-left">
         {/* Freecalidraw Brand / Logo */}
-        <div className="brand-logo" title="Freecalidraw - Open Source Whiteboard">
+        <div className="brand-logo" title="Freecalidraw">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
             <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
           </svg>
-          <div className="brand-info">
-            <span className="brand-text">Freecalidraw</span>
-            <span className="brand-tag">v1.0 • Open Source</span>
-          </div>
+          <span className="brand-text">Freecalidraw</span>
         </div>
 
         {/* Board Switcher Dropdown & Quick Actions */}
@@ -316,11 +313,11 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         {/* Theme Toggle Button */}
         <button
-          className="topbar-icon-btn"
+          className="topbar-action-btn icon-only"
           onClick={onToggleTheme}
           title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
         >
-          {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
+          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         </button>
       </div>
     </header>
