@@ -54,8 +54,16 @@ export class CollabManager {
     this.isConnecting = true;
     this.callbacks.onConnectionStatus("connecting");
 
-    const host = window.location.hostname || "localhost";
-    const wsUrl = serverUrl || `ws://${host}:3002`;
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const port = window.location.port;
+    // In dev mode (Vite on port 5173), fallback to standalone relay on 3002
+    // In production container (port 3000, 80, or behind reverse proxy), connect to same host/port
+    const defaultWsUrl =
+      port === "5173"
+        ? `${protocol}//${window.location.hostname}:3002`
+        : `${protocol}//${window.location.host}/ws`;
+
+    const wsUrl = serverUrl || defaultWsUrl;
 
     try {
       this.ws = new WebSocket(wsUrl);
