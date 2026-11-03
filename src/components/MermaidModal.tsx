@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   X,
   FileCode,
@@ -8,11 +8,14 @@ import {
   AlertTriangle,
   Sparkles,
   Layers,
-  ArrowRight,
+  HelpCircle,
+  Network,
+  Info,
 } from "lucide-react";
 import {
   inspectMermaidSvg,
   insertSvgAsImage,
+  insertSvgAsConnectedDiagram,
   insertMermaidTextAsElements,
   isMermaidSyntax,
   SvgInspectionResult,
@@ -23,6 +26,7 @@ interface MermaidModalProps {
   isOpen: boolean;
   onClose: () => void;
   excalidrawAPI: ExcalidrawImperativeAPI | null;
+  initialContent?: string;
 }
 
 const SAMPLE_ARCHITECTURE_MERMAID = `flowchart TD
@@ -46,6 +50,7 @@ export const MermaidModal: React.FC<MermaidModalProps> = ({
   isOpen,
   onClose,
   excalidrawAPI,
+  initialContent,
 }) => {
   const [activeTab, setActiveTab] = useState<"svg" | "syntax">("svg");
   const [inputContent, setInputContent] = useState<string>("");
@@ -53,6 +58,26 @@ export const MermaidModal: React.FC<MermaidModalProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialContent) {
+        setInputContent(initialContent);
+        if (initialContent.includes("<svg")) {
+          setActiveTab("svg");
+          setInspection(inspectMermaidSvg(initialContent));
+        } else if (isMermaidSyntax(initialContent)) {
+          setActiveTab("syntax");
+          setInspection(null);
+        }
+      } else {
+        if (!inputContent) {
+          setInspection(null);
+        }
+      }
+      setErrorMsg(null);
+    }
+  }, [isOpen, initialContent]);
 
   if (!isOpen) return null;
 
@@ -98,6 +123,7 @@ export const MermaidModal: React.FC<MermaidModalProps> = ({
     }
   };
 
+  // Action 1: Insert as Image (always available for SVG)
   const handleInsertAsImage = async () => {
     if (!excalidrawAPI || !inputContent.trim()) return;
     setIsProcessing(true);
@@ -113,21 +139,21 @@ export const MermaidModal: React.FC<MermaidModalProps> = ({
     }
   };
 
-  const handleInsertAsElements = async () => {
+  // Action 2: Convert to Connected Diagram Elements (1:1 replica with boxes, arrows, labels)
+  const handleInsertAsDiagram = async () => {
     if (!excalidrawAPI || !inputContent.trim()) return;
     setIsProcessing(true);
     setErrorMsg(null);
     try {
-      let codeToParse = inputContent.trim();
-      if (inspection && inspection.hasMermaidSource && inspection.mermaidSource) {
-        codeToParse = inspection.mermaidSource;
+      if (activeTab === "syntax" || isMermaidSyntax(inputContent.trim())) {
+        await insertMermaidTextAsElements(inputContent.trim(), excalidrawAPI);
+      } else {
+        await insertSvgAsConnectedDiagram(inputContent, excalidrawAPI);
       }
-
-      await insertMermaidTextAsElements(codeToParse, excalidrawAPI);
       onClose();
     } catch (err: any) {
       console.error(err);
-      setErrorMsg(err.message || "Failed to convert Mermaid definition into Excalidraw elements.");
+      setErrorMsg(err.message || "Failed to convert diagram into connected elements.");
     } finally {
       setIsProcessing(false);
     }
@@ -135,15 +161,16 @@ export const MermaidModal: React.FC<MermaidModalProps> = ({
 
   const isInputSvg = inputContent.trim().includes("<svg");
   const isInputMermaid = isMermaidSyntax(inputContent.trim());
-  const canConvertMermaid = isInputMermaid || (inspection && inspection.hasMermaidSource);
+  const canConvertDiagram =
+    isInputMermaid || (inspection && inspection.isBreakable);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-content mermaid-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-title-with-icon">
-            <FileCode size={20} className="modal-title-icon" />
-            <h2>Load Mermaid Architecture & SVG</h2>
+            <Network size={20} className="modal-title-icon" />
+            <h2>Import SVG & Architecture Diagrams</h2>
           </div>
           <button className="modal-close-btn" onClick={onClose}>
             <X size={18} />
@@ -164,13 +191,14 @@ export const MermaidModal: React.FC<MermaidModalProps> = ({
               className={`mermaid-tab-btn ${activeTab === "syntax" ? "active" : ""}`}
               onClick={() => {
                 setActiveTab("syntax");
-                if (!inputContent) {
+                if (!inputContent || inputContent.includes("<svg")) {
                   setInputContent(SAMPLE_ARCHITECTURE_MERMAID);
+                  setInspection(null);
                 }
               }}
             >
               <FileCode size={15} />
-              <span>Mermaid Syntax (Code)</span>
+              <span>Mermaid Code Syntax</span>
             </button>
           </div>
 
@@ -182,7 +210,10 @@ export const MermaidModal: React.FC<MermaidModalProps> = ({
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload size={28} className="dropzone-icon" />
-              <p>Drag and drop a <strong>.svg</strong> file here, or click to browse</p>
+              <p>Drag and drop any <strong>.svg</strong> file here, or click to browse</p>
+              <span className="dropzone-sub">
+                Supports Mermaid SVGs, architecture diagrams, draw.io, Visio, and standard vector SVGs
+              </span>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -197,12 +228,12 @@ export const MermaidModal: React.FC<MermaidModalProps> = ({
           <div className="form-group">
             <label>
               {activeTab === "svg"
-                ? "Or paste raw SVG markup below:"
+                ? "Or paste raw SVG markup directly:"
                 : "Paste Mermaid diagram code (flowchart, architecture, sequence):"}
             </label>
             <textarea
               className="mermaid-textarea"
-              rows={7}
+              rows={activeTab === "svg" && inspection ? 5 : 7}
               placeholder={
                 activeTab === "svg"
                   ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">...</svg>'
@@ -213,30 +244,63 @@ export const MermaidModal: React.FC<MermaidModalProps> = ({
             />
           </div>
 
-          {/* Compatibility Analysis Card */}
+          {/* SVG Diagram Analysis & Breakability Card */}
           {inspection && (
             <div className="inspection-card">
-              <h4>Compatibility Check</h4>
-              <div className="inspection-grid">
-                <div className="inspection-item">
-                  <CheckCircle2 size={15} className="text-success" />
-                  <span>
-                    Dimensions: <strong>{Math.round(inspection.width)} × {Math.round(inspection.height)} px</strong>
+              <div className="inspection-header-row">
+                <h4>Diagram Compatibility & Breakability Check</h4>
+                {inspection.isBreakable ? (
+                  <span className="badge badge-success">
+                    <CheckCircle2 size={13} />
+                    Breakable to Diagram Elements
+                  </span>
+                ) : (
+                  <span className="badge badge-warning">
+                    <Info size={13} />
+                    Image Import Only
+                  </span>
+                )}
+              </div>
+
+              <div className="breakdown-grid">
+                <div className="breakdown-chip">
+                  <span className="chip-label">Dimensions</span>
+                  <span className="chip-val">
+                    {Math.round(inspection.width)} × {Math.round(inspection.height)} px
                   </span>
                 </div>
-                <div className="inspection-item">
-                  {inspection.hasMermaidSource ? (
-                    <>
-                      <Sparkles size={15} className="text-primary" />
-                      <span>Embedded Mermaid source detected</span>
-                    </>
-                  ) : (
-                    <>
-                      <Layers size={15} className="text-muted" />
-                      <span>Standard Vector SVG</span>
-                    </>
-                  )}
+                <div className="breakdown-chip">
+                  <span className="chip-label">Boxes & Nodes</span>
+                  <span className="chip-val">{inspection.breakdown.boxCount}</span>
                 </div>
+                <div className="breakdown-chip">
+                  <span className="chip-label">Connectors / Arrows</span>
+                  <span className="chip-val">{inspection.breakdown.connectorCount}</span>
+                </div>
+                <div className="breakdown-chip">
+                  <span className="chip-label">Labels</span>
+                  <span className="chip-val">{inspection.breakdown.labelCount}</span>
+                </div>
+              </div>
+
+              <div className="inspection-status-line">
+                {inspection.isBreakable ? (
+                  <div className="status-success-message">
+                    <Sparkles size={14} className="text-primary" />
+                    <span>
+                      {inspection.hasMermaidSource
+                        ? "Embedded Mermaid source detected. Ready for 1:1 conversion into editable shapes with active connections."
+                        : `Ready for conversion: ${inspection.breakdown.boxCount} boxes, ${inspection.breakdown.connectorCount} connectors, and ${inspection.breakdown.labelCount} labels.`}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="status-info-message">
+                    <HelpCircle size={14} className="text-muted" />
+                    <span>
+                      {inspection.breakdown.reason} You can still insert it as an exact vector SVG image.
+                    </span>
+                  </div>
+                )}
               </div>
 
               {inspection.warnings.length > 0 && (
@@ -266,39 +330,35 @@ export const MermaidModal: React.FC<MermaidModalProps> = ({
             </button>
 
             <div className="modal-actions-right">
-              {/* Option A: Convert to native editable Excalidraw shapes */}
-              {canConvertMermaid && (
-                <button
-                  className="btn-primary"
-                  onClick={handleInsertAsElements}
-                  disabled={isProcessing}
-                >
-                  <Sparkles size={16} />
-                  <span>Insert as Editable Elements</span>
-                </button>
-              )}
+              {/* Option A: Convert to 1:1 Connected Diagram Elements (Optional, enabled when breakable) */}
+              <button
+                className="btn-primary"
+                onClick={handleInsertAsDiagram}
+                disabled={isProcessing || !canConvertDiagram}
+                title={
+                  !canConvertDiagram
+                    ? "Cannot convert: No diagram shapes or connectors detected"
+                    : "Converts the SVG into native connected boxes, arrows, and labels on canvas"
+                }
+              >
+                <Sparkles size={16} />
+                <span>
+                  {activeTab === "syntax"
+                    ? "Generate Diagram"
+                    : "Convert to Connected Diagram"}
+                </span>
+              </button>
 
-              {/* Option B: Insert as vector SVG image */}
+              {/* Option B: Insert as Vector SVG Image */}
               {isInputSvg && (
                 <button
-                  className={canConvertMermaid ? "btn-secondary" : "btn-primary"}
+                  className="btn-secondary"
                   onClick={handleInsertAsImage}
                   disabled={isProcessing}
+                  title="Inserts the SVG directly onto the canvas as a vector image element"
                 >
                   <Image size={16} />
                   <span>Insert as SVG Image</span>
-                </button>
-              )}
-
-              {/* If no SVG and not mermaid keyword, attempt parse */}
-              {!isInputSvg && !canConvertMermaid && inputContent.trim() && (
-                <button
-                  className="btn-primary"
-                  onClick={handleInsertAsElements}
-                  disabled={isProcessing}
-                >
-                  <ArrowRight size={16} />
-                  <span>Parse & Insert</span>
                 </button>
               )}
             </div>

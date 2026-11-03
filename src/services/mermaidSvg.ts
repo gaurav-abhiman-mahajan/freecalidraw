@@ -1,7 +1,12 @@
 import { parseMermaidToExcalidraw } from "@excalidraw/mermaid-to-excalidraw";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { ExcalidrawImageElement, FileId } from "@excalidraw/excalidraw/element/types";
+import { ExcalidrawElement, ExcalidrawImageElement, FileId } from "@excalidraw/excalidraw/element/types";
+import {
+  parseSvgToDiagram,
+  convertSvgToConnectedDiagram,
+  DiagramBreakabilityReport,
+} from "./svgDiagramConverter";
 
 export interface SvgInspectionResult {
   isSvg: boolean;
@@ -11,10 +16,13 @@ export interface SvgInspectionResult {
   height: number;
   hasForeignObject: boolean;
   warnings: string[];
+  isBreakable: boolean;
+  breakdown: DiagramBreakabilityReport;
 }
 
 /**
- * Inspect an SVG string for compatibility with Excalidraw and detect embedded Mermaid definitions.
+ * Inspect an SVG string for compatibility with Excalidraw, detect embedded Mermaid definitions,
+ * and test breakability into connected diagram primitives (boxes, arrows, text).
  */
 export function inspectMermaidSvg(rawSvg: string): SvgInspectionResult {
   const warnings: string[] = [];
@@ -29,6 +37,15 @@ export function inspectMermaidSvg(rawSvg: string): SvgInspectionResult {
       height: 0,
       hasForeignObject: false,
       warnings: ["The provided text is not valid SVG XML."],
+      isBreakable: false,
+      breakdown: {
+        isBreakable: false,
+        boxCount: 0,
+        connectorCount: 0,
+        labelCount: 0,
+        hasEmbeddedMermaid: false,
+        reason: "Invalid SVG format.",
+      },
     };
   }
 
@@ -36,8 +53,9 @@ export function inspectMermaidSvg(rawSvg: string): SvgInspectionResult {
   let mermaidSource: string | null = null;
 
   // Look in <desc class="mermaid">...</desc> or <desc>...</desc>
-  const descMatch = trimmed.match(/<desc[^>]*class=["'][^"']*mermaid[^"']*["'][^>]*>([\s\S]*?)<\/desc>/i)
-    || trimmed.match(/<desc[^>]*>([\s\S]*?)<\/desc>/i);
+  const descMatch =
+    trimmed.match(/<desc[^>]*class=["'][^"']*mermaid[^"']*["'][^>]*>([\s\S]*?)<\/desc>/i) ||
+    trimmed.match(/<desc[^>]*>([\s\S]*?)<\/desc>/i);
   if (descMatch && descMatch[1]) {
     const candidate = descMatch[1].trim();
     if (isMermaidSyntax(candidate)) {
@@ -78,7 +96,9 @@ export function inspectMermaidSvg(rawSvg: string): SvgInspectionResult {
   let height = 600;
   const hasForeignObject = trimmed.includes("<foreignObject");
 
-  const viewBoxMatch = trimmed.match(/viewBox=["']\s*([-\d.]+)[,\s]+([-\d.]+)[,\s]+([-\d.]+)[,\s]+([-\d.]+)\s*["']/i);
+  const viewBoxMatch = trimmed.match(
+    /viewBox=["']\s*([-\d.]+)[,\s]+([-\d.]+)[,\s]+([-\d.]+)[,\s]+([-\d.]+)\s*["']/i
+  );
   if (viewBoxMatch) {
     const vbWidth = parseFloat(viewBoxMatch[3]);
     const vbHeight = parseFloat(viewBoxMatch[4]);
@@ -103,6 +123,13 @@ export function inspectMermaidSvg(rawSvg: string): SvgInspectionResult {
     warnings.push("SVG width is set to 100% without a viewBox; normalized to fallback dimensions.");
   }
 
+  // 3. Inspect SVG diagram primitives (geometric breakability analysis)
+  const { report } = parseSvgToDiagram(trimmed);
+  if (mermaidSource) {
+    report.isBreakable = true;
+    report.hasEmbeddedMermaid = true;
+  }
+
   return {
     isSvg: true,
     hasMermaidSource: Boolean(mermaidSource),
@@ -111,6 +138,8 @@ export function inspectMermaidSvg(rawSvg: string): SvgInspectionResult {
     height,
     hasForeignObject,
     warnings,
+    isBreakable: report.isBreakable,
+    breakdown: report,
   };
 }
 
@@ -151,7 +180,7 @@ export function isMermaidSyntax(text: string): boolean {
  * Sanitize and normalize SVG XML so that HTML5 Canvas and Excalidraw can render it without dimension or namespace errors.
  */
 export function sanitizeSvg(svgContent: string): { svg: string; width: number; height: number } {
-  let cleaned = svgContent.trim();
+  const cleaned = svgContent.trim();
   const inspection = inspectMermaidSvg(cleaned);
 
   const parser = new DOMParser();
@@ -173,8 +202,8 @@ export function sanitizeSvg(svgContent: string): { svg: string; width: number; h
   }
 
   // Normalize explicit width and height
-  let width = inspection.width;
-  let height = inspection.height;
+  const width = inspection.width;
+  const height = inspection.height;
 
   svgEl.setAttribute("width", `${width}`);
   svgEl.setAttribute("height", `${height}`);
@@ -192,7 +221,7 @@ export function sanitizeSvg(svgContent: string): { svg: string; width: number; h
 }
 
 /**
- * Insert an SVG into the Excalidraw canvas as a high-fidelity image element.
+ * Insert an SVG into the Excalidraw canvas as a high-fidelity vector image element.
  */
 export async function insertSvgAsImage(
   svgContent: string,
@@ -203,7 +232,7 @@ export async function insertSvgAsImage(
   // Convert to base64 data URL
   const encoded = unescape(encodeURIComponent(svg));
   const base64 = btoa(encoded);
-  const dataURL = `data:image/svg+xml;base64,${base64}`;
+  const dataURL = `data:image/svg+xml;base64,${base64}` as any;
 
   const fileId = ("file_" + Math.random().toString(36).substring(2, 10)) as FileId;
 
@@ -211,7 +240,7 @@ export async function insertSvgAsImage(
   api.addFiles([
     {
       id: fileId,
-      dataURL: dataURL as any,
+      dataURL,
       mimeType: "image/svg+xml",
       created: Date.now(),
       lastRetrieved: Date.now(),
@@ -221,8 +250,8 @@ export async function insertSvgAsImage(
   // Compute center position in current scene viewport
   const appState = api.getAppState();
   const zoom = appState.zoom.value || 1;
-  const centerX = -appState.scrollX + (appState.width / 2) / zoom;
-  const centerY = -appState.scrollY + (appState.height / 2) / zoom;
+  const centerX = -appState.scrollX + appState.width / 2 / zoom;
+  const centerY = -appState.scrollY + appState.height / 2 / zoom;
 
   // Scale down if larger than reasonable viewport size
   let renderWidth = width;
@@ -274,56 +303,75 @@ export async function insertSvgAsImage(
 }
 
 /**
- * Convert Mermaid diagram syntax into native, hand-drawn Excalidraw elements.
+ * Converts an SVG into connected native Excalidraw elements (boxes, connectors, bindings, labels).
+ * If embedded Mermaid syntax is found, parses with mermaid-to-excalidraw first;
+ * otherwise performs full vector SVG geometric diagram decomposition.
  */
-export async function insertMermaidTextAsElements(
-  mermaidSyntax: string,
+export async function insertSvgAsConnectedDiagram(
+  svgString: string,
   api: ExcalidrawImperativeAPI
 ): Promise<void> {
-  const result = await parseMermaidToExcalidraw(mermaidSyntax, {
-    themeVariables: {
-      fontSize: "18px",
-    },
-  });
+  const inspection = inspectMermaidSvg(svgString);
 
-  if (result.files && Object.keys(result.files).length > 0) {
-    api.addFiles(Object.values(result.files));
+  // If embedded Mermaid definition exists, try using official mermaid parser
+  if (inspection.hasMermaidSource && inspection.mermaidSource) {
+    try {
+      await insertMermaidTextAsElements(inspection.mermaidSource, api);
+      return;
+    } catch (err) {
+      console.warn("Embedded mermaid syntax parse failed, falling back to SVG vector parser:", err);
+    }
   }
 
-  const elements = convertToExcalidrawElements(result.elements);
+  // Geometric decomposition into connected Excalidraw elements
+  await convertSvgToConnectedDiagram(svgString, api);
+}
 
-  // Compute offset to position near the center of the current view
+/**
+ * Parse Mermaid code syntax directly and insert native Excalidraw elements.
+ */
+export async function insertMermaidTextAsElements(
+  mermaidCode: string,
+  api: ExcalidrawImperativeAPI
+): Promise<void> {
+  const { elements } = await parseMermaidToExcalidraw(mermaidCode);
+
+  const convertedElements = convertToExcalidrawElements(elements as any, {
+    regenerateIds: false,
+  });
+
+  // Calculate center of current viewport to place diagram
   const appState = api.getAppState();
   const zoom = appState.zoom.value || 1;
-  const targetCenterX = -appState.scrollX + (appState.width / 2) / zoom;
-  const targetCenterY = -appState.scrollY + (appState.height / 2) / zoom;
+  const centerX = -appState.scrollX + appState.width / 2 / zoom;
+  const centerY = -appState.scrollY + appState.height / 2 / zoom;
 
   // Find bounding box of generated elements
   let minX = Infinity;
-  let minY = Infinity;
   let maxX = -Infinity;
+  let minY = Infinity;
   let maxY = -Infinity;
 
-  for (const el of elements) {
-    if (el.x < minX) minX = el.x;
-    if (el.y < minY) minY = el.y;
-    if (el.x + el.width > maxX) maxX = el.x + el.width;
-    if (el.y + el.height > maxY) maxY = el.y + el.height;
-  }
+  convertedElements.forEach((el) => {
+    minX = Math.min(minX, el.x);
+    maxX = Math.max(maxX, el.x + el.width);
+    minY = Math.min(minY, el.y);
+    maxY = Math.max(maxY, el.y + el.height);
+  });
 
-  const groupCenterX = (minX + maxX) / 2;
-  const groupCenterY = (minY + maxY) / 2;
-  const deltaX = Math.round(targetCenterX - groupCenterX);
-  const deltaY = Math.round(targetCenterY - groupCenterY);
+  const diagWidth = maxX - minX || 200;
+  const diagHeight = maxY - minY || 200;
+  const deltaX = centerX - diagWidth / 2 - minX;
+  const deltaY = centerY - diagHeight / 2 - minY;
 
-  const positionedElements = elements.map((el) => ({
+  const shiftedElements = convertedElements.map((el) => ({
     ...el,
-    x: el.x + deltaX,
-    y: el.y + deltaY,
+    x: Math.round(el.x + deltaX),
+    y: Math.round(el.y + deltaY),
   }));
 
   const currentElements = api.getSceneElements();
   api.updateScene({
-    elements: [...currentElements, ...positionedElements],
+    elements: [...currentElements, ...(shiftedElements as ExcalidrawElement[])],
   });
 }

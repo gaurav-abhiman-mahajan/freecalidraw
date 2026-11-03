@@ -2,12 +2,14 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   Excalidraw,
   reconcileElements,
+  restoreElements,
   CaptureUpdateAction,
   MainMenu,
   WelcomeScreen,
 } from "@excalidraw/excalidraw";
 import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { AppState, BinaryFiles, ExcalidrawImperativeAPI, Collaborator } from "@excalidraw/excalidraw/types";
+import { FolderOpen } from "lucide-react";
 
 import { TopBar } from "./components/TopBar";
 import { CollabModal } from "./components/CollabModal";
@@ -60,6 +62,7 @@ export const App: React.FC = () => {
   const [isCollabModalOpen, setIsCollabModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isMermaidModalOpen, setIsMermaidModalOpen] = useState(false);
+  const [mermaidModalInitialContent, setMermaidModalInitialContent] = useState<string>("");
 
   // Cached state for export modal (updated only when export modal opens)
   const [exportData, setExportData] = useState<{
@@ -328,6 +331,151 @@ export const App: React.FC = () => {
     setIsExportModalOpen(true);
   };
 
+  // Process SVG file content (either Excalidraw scene or general diagram/SVG)
+  const handleProcessSvgFile = useCallback(
+    (svgContent: string) => {
+      if (!excalidrawAPI) return;
+
+      // Check if it's an exported Excalidraw scene embedded in SVG
+      const payloadMatch =
+        svgContent.match(/<!--\s*payload-start\s*-->([\s\S]*?)<!--\s*payload-end\s*-->/) ||
+        svgContent.match(/<!--\s*{"type":"excalidraw"([\s\S]*?)-->/);
+
+      if (payloadMatch) {
+        try {
+          let jsonStr = payloadMatch[1].trim();
+          if (!jsonStr.startsWith("{")) jsonStr = "{" + jsonStr;
+          const data = JSON.parse(jsonStr);
+          if (data && Array.isArray(data.elements)) {
+            const restored = restoreElements(data.elements, null);
+            excalidrawAPI.updateScene({
+              elements: restored,
+              appState: data.appState ? { ...data.appState } : undefined,
+            });
+            if (data.files && excalidrawAPI.addFiles) {
+              const filesList = Object.values(data.files);
+              if (filesList.length > 0) {
+                excalidrawAPI.addFiles(filesList as any);
+              }
+            }
+            return;
+          }
+        } catch (err) {
+          console.warn("Could not parse embedded Excalidraw SVG metadata:", err);
+        }
+      }
+
+      // Standard or Mermaid SVG diagram: prefill into modal for 1:1 conversion or image insert
+      setMermaidModalInitialContent(svgContent);
+      setIsMermaidModalOpen(true);
+    },
+    [excalidrawAPI]
+  );
+
+  // Open file picker supporting .excalidraw, .json, and .svg without image error
+  const handleOpenFilePicker = useCallback(() => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept =
+      ".excalidraw,.json,.png,.svg,.excalidraw.json,.excalidraw.svg,.excalidraw.png,image/svg+xml";
+
+    input.onchange = (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      const file = target.files?.[0];
+      if (!file) return;
+
+      const fileName = file.name.toLowerCase();
+      const reader = new FileReader();
+
+      if (fileName.endsWith(".svg") || file.type === "image/svg+xml") {
+        reader.onload = (event) => {
+          const text = event.target?.result as string;
+          if (text) {
+            handleProcessSvgFile(text);
+          }
+        };
+        reader.readAsText(file);
+      } else if (
+        fileName.endsWith(".json") ||
+        fileName.endsWith(".excalidraw") ||
+        fileName.endsWith(".excalidraw.json")
+      ) {
+        reader.onload = (event) => {
+          try {
+            const text = event.target?.result as string;
+            const data = JSON.parse(text);
+            if (data && Array.isArray(data.elements) && excalidrawAPI) {
+              const restored = restoreElements(data.elements, null);
+              excalidrawAPI.updateScene({
+                elements: restored,
+                appState: data.appState ? { ...data.appState } : undefined,
+              });
+              if (data.files && excalidrawAPI.addFiles) {
+                const filesList = Object.values(data.files);
+                if (filesList.length > 0) {
+                  excalidrawAPI.addFiles(filesList as any);
+                }
+              }
+            }
+          } catch (err) {
+            console.error("Failed to load Excalidraw JSON file:", err);
+          }
+        };
+        reader.readAsText(file);
+      } else {
+        reader.onload = (event) => {
+          const text = event.target?.result as string;
+          if (text && text.includes("<svg")) {
+            handleProcessSvgFile(text);
+          }
+        };
+        reader.readAsText(file);
+      }
+    };
+
+    input.click();
+  }, [excalidrawAPI, handleProcessSvgFile]);
+
+  // Global drag-and-drop & keyboard shortcut for opening files
+  useEffect(() => {
+    const handleDragOver = (e: DragEvent) => {
+      e.preventDefault();
+    };
+
+    const handleDrop = (e: DragEvent) => {
+      const file = e.dataTransfer?.files?.[0];
+      if (file && (file.name.toLowerCase().endsWith(".svg") || file.type === "image/svg+xml")) {
+        e.preventDefault();
+        e.stopPropagation();
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const text = event.target?.result as string;
+          if (text) {
+            handleProcessSvgFile(text);
+          }
+        };
+        reader.readAsText(file);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "o") {
+        e.preventDefault();
+        handleOpenFilePicker();
+      }
+    };
+
+    window.addEventListener("dragover", handleDragOver);
+    window.addEventListener("drop", handleDrop);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("dragover", handleDragOver);
+      window.removeEventListener("drop", handleDrop);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleOpenFilePicker, handleProcessSvgFile]);
+
   return (
     <div className={`excalidraw-app-container ${theme === "dark" ? "theme-dark" : "theme-light"}`}>
       <TopBar
@@ -342,7 +490,10 @@ export const App: React.FC = () => {
         collabSession={collabSession}
         onOpenCollab={() => setIsCollabModalOpen(true)}
         onOpenExport={handleOpenExport}
-        onOpenMermaid={() => setIsMermaidModalOpen(true)}
+        onOpenMermaid={() => {
+          setMermaidModalInitialContent("");
+          setIsMermaidModalOpen(true);
+        }}
         theme={theme}
         onToggleTheme={handleToggleTheme}
       />
@@ -359,7 +510,7 @@ export const App: React.FC = () => {
             canvasActions: {
               changeViewBackgroundColor: true,
               clearCanvas: true,
-              loadScene: true,
+              loadScene: false,
               saveToActiveFile: true,
               toggleTheme: true,
               export: {
@@ -369,7 +520,13 @@ export const App: React.FC = () => {
           }}
         >
           <MainMenu>
-            <MainMenu.DefaultItems.LoadScene />
+            <MainMenu.Item
+              icon={<FolderOpen size={16} />}
+              shortcut="Ctrl+O"
+              onSelect={handleOpenFilePicker}
+            >
+              Open...
+            </MainMenu.Item>
             <MainMenu.DefaultItems.SaveToActiveFile />
             <MainMenu.DefaultItems.Export />
             <MainMenu.DefaultItems.SaveAsImage />
@@ -378,9 +535,12 @@ export const App: React.FC = () => {
             <MainMenu.DefaultItems.ClearCanvas />
             <MainMenu.Separator />
             <MainMenu.Item
-              onSelect={() => setIsMermaidModalOpen(true)}
+              onSelect={() => {
+                setMermaidModalInitialContent("");
+                setIsMermaidModalOpen(true);
+              }}
             >
-              Insert Mermaid / SVG
+              Import SVG / Mermaid
             </MainMenu.Item>
             <MainMenu.Item
               onSelect={() => setIsCollabModalOpen(true)}
@@ -422,6 +582,7 @@ export const App: React.FC = () => {
         isOpen={isMermaidModalOpen}
         onClose={() => setIsMermaidModalOpen(false)}
         excalidrawAPI={excalidrawAPI}
+        initialContent={mermaidModalInitialContent}
       />
     </div>
   );
