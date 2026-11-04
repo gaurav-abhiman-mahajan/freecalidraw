@@ -9,6 +9,10 @@ Freecalidraw is an open-source, privacy-first, self-hosted virtual whiteboard wi
 [![Offline Capable](https://img.shields.io/badge/Offline-100%25-brightgreen.svg)]()
 [![Zero Telemetry](https://img.shields.io/badge/Telemetry-Zero-orange.svg)]()
 
+<p align="center">
+  <img src="docs/assets/screenshot.png" alt="Freecalidraw Interface Preview" width="100%" />
+</p>
+
 ---
 
 ## Overview
