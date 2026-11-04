@@ -4,8 +4,9 @@ Freecalidraw is an open-source, privacy-first, self-hosted virtual whiteboard wi
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://github.com/gaurav-abhiman-mahajan/freecalidraw/actions/workflows/ci.yml/badge.svg)](https://github.com/gaurav-abhiman-mahajan/freecalidraw/actions/workflows/ci.yml)
+[![Pages Deployment](https://github.com/gaurav-abhiman-mahajan/freecalidraw/actions/workflows/deploy.yml/badge.svg)](https://github.com/gaurav-abhiman-mahajan/freecalidraw/actions/workflows/deploy.yml)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-GitHub%20Pages-2ea44f.svg)](https://gaurav-abhiman-mahajan.github.io/freecalidraw/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](docker-compose.yml)
-[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-green.svg)](package.json)
 [![Offline Capable](https://img.shields.io/badge/Offline-100%25-brightgreen.svg)]()
 [![Zero Telemetry](https://img.shields.io/badge/Telemetry-Zero-orange.svg)]()
 
