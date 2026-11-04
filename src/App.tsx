@@ -432,7 +432,7 @@ export const App: React.FC = () => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept =
-      ".excalidraw,.json,.png,.svg,.excalidraw.json,.excalidraw.svg,.excalidraw.png,image/svg+xml";
+      ".freecalidraw,.excalidraw,.json,.png,.svg,.freecalidraw.json,.excalidraw.json,.freecalidraw.svg,.excalidraw.svg,.freecalidraw.png,.excalidraw.png,image/svg+xml";
 
     input.onchange = (e: Event) => {
       const target = e.target as HTMLInputElement;
@@ -452,6 +452,7 @@ export const App: React.FC = () => {
         reader.readAsText(file);
       } else if (
         fileName.endsWith(".json") ||
+        fileName.endsWith(".freecalidraw") ||
         fileName.endsWith(".excalidraw") ||
         fileName.endsWith(".excalidraw.json")
       ) {
@@ -532,7 +533,7 @@ export const App: React.FC = () => {
   }, [handleOpenFilePicker, handleProcessSvgFile]);
 
   return (
-    <div className={`excalidraw-app-container ${theme === "dark" ? "theme-dark" : "theme-light"}`}>
+    <div className={`freecalidraw-app-container ${theme === "dark" ? "theme-dark" : "theme-light"}`}>
       <TopBar
         currentBoardName={currentBoardName}
         onRenameBoard={handleRenameBoard}
@@ -553,7 +554,7 @@ export const App: React.FC = () => {
         onToggleTheme={handleToggleTheme}
       />
 
-      <div className="excalidraw-canvas-wrapper">
+      <div className="freecalidraw-canvas-wrapper">
         <Excalidraw
           excalidrawAPI={(api) => setExcalidrawAPI(api)}
           initialData={initialData}
@@ -609,7 +610,31 @@ export const App: React.FC = () => {
             </MainMenu.Item>
             <MainMenu.DefaultItems.ChangeCanvasBackground />
           </MainMenu>
-          <WelcomeScreen />
+          <WelcomeScreen>
+            <WelcomeScreen.Center>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px', color: 'var(--primary, #6965db)' }}>
+                <svg width='48' height='48' viewBox='0 0 24 24' fill='currentColor'>
+                  <path d='M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z' />
+                </svg>
+              </div>
+              <WelcomeScreen.Center.Heading>
+                Freecalidraw
+              </WelcomeScreen.Center.Heading>
+              <WelcomeScreen.Center.Menu>
+                <WelcomeScreen.Center.MenuItem
+                  icon={<FolderOpen size={16} />}
+                  shortcut="Ctrl+O"
+                  onSelect={handleOpenFilePicker}
+                >
+                  Open file...
+                </WelcomeScreen.Center.MenuItem>
+                <WelcomeScreen.Center.MenuItemHelp />
+              </WelcomeScreen.Center.Menu>
+            </WelcomeScreen.Center>
+            <WelcomeScreen.Hints.MenuHint />
+            <WelcomeScreen.Hints.ToolbarHint />
+            <WelcomeScreen.Hints.HelpHint />
+          </WelcomeScreen>
         </Excalidraw>
       </div>
 

@@ -121,8 +121,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 onClick={() => setFormat("json")}
               >
                 <FileText size={24} />
-                <span className="format-name">Excalidraw</span>
-                <span className="format-desc">Editable project JSON</span>
+                <span className="format-name">Freecalidraw</span>
+                <span className="format-desc">Editable project JSON (.freecalidraw)</span>
               </button>
             </div>
           </div>

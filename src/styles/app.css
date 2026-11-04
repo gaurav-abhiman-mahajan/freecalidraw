@@ -34,7 +34,7 @@
 }
 
 /* App Layout */
-.excalidraw-app-container {
+.freecalidraw-app-container {
   display: flex;
   flex-direction: column;
   width: 100vw;
@@ -44,21 +44,21 @@
   overflow: hidden;
 }
 
-.excalidraw-canvas-wrapper {
+.freecalidraw-canvas-wrapper {
   flex: 1;
   width: 100%;
   height: calc(100vh - 48px);
   position: relative;
 }
 
-.excalidraw-canvas-wrapper .excalidraw {
+.freecalidraw-canvas-wrapper .excalidraw {
   width: 100% !important;
   height: 100% !important;
   position: relative !important;
 }
 
 /* Top Bar */
-.excalidraw-top-bar {
+.freecalidraw-top-bar {
   height: 48px;
   background: var(--topbar-bg);
   border-bottom: 1px solid var(--topbar-border);

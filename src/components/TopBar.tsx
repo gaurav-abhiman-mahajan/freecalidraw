@@ -105,7 +105,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   };
 
   return (
-    <header className="excalidraw-top-bar">
+    <header className="freecalidraw-top-bar">
       <div className="top-bar-left">
         {/* Freecalidraw Brand / Logo */}
         <div className="brand-logo" title="Freecalidraw">
