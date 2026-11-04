@@ -1,18 +1,37 @@
 {
   "name": "freecalidraw",
-  "description": "Open source, self-hosted, collaborative whiteboard with multi-board storage, E2EE collaboration, and 1:1 SVG/Mermaid diagram conversion",
+  "description": "Open source, self-hosted, privacy-first virtual whiteboard with multi-board storage, E2EE collaboration, and 1:1 SVG/Mermaid diagram conversion",
+  "version": "1.0.0",
   "license": "MIT",
+  "author": "Gaurav Mahajan",
   "repository": {
     "type": "git",
     "url": "https://github.com/gaurav-abhiman-mahajan/freecalidraw.git"
   },
   "homepage": "https://github.com/gaurav-abhiman-mahajan/freecalidraw#readme",
+  "bugs": {
+    "url": "https://github.com/gaurav-abhiman-mahajan/freecalidraw/issues"
+  },
+  "keywords": [
+    "freecalidraw",
+    "excalidraw",
+    "whiteboard",
+    "diagramming",
+    "architecture-diagrams",
+    "mermaid",
+    "svg-converter",
+    "realtime-collaboration",
+    "end-to-end-encryption",
+    "self-hosted",
+    "offline-first",
+    "open-source"
+  ],
   "private": true,
-  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "server": "node server/collab-server.js",
     "start": "concurrently \"npm:server\" \"npm:dev\""
